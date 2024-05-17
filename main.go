@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"win-files-to-print/pkg/scanner"
 
 	"github.com/gorilla/mux"
 
@@ -43,6 +44,8 @@ func main() {
 
 	cmd := strings.ToLower(os.Args[1])
 	switch cmd {
+	case "list":
+		scanner.NewScanner().PrintList()
 	case "install":
 		err = installService(svcName, "Go HTTP Server")
 	case "remove":
