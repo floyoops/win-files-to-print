@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"net/http"
+	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
-	"win-files-to-print/pkg/scanner"
-
-	"github.com/gorilla/mux"
+	"win-files-to-print/pkg/print"
+	"win-files-to-print/pkg/ui"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -20,10 +21,12 @@ type winservice struct{}
 
 var isFirstRun bool = true
 var elog *eventlog.Log
-var eventid uint32 = 10001
+var eventid uint32 = 10002
+
+const svcDescription = "Win files to print"
 
 func main() {
-	const svcName = "Go HTTP Server"
+	const svcName = "WinFilesToPrint"
 
 	elog, _ = eventlog.Open(svcName)
 	defer elog.Close()
@@ -45,13 +48,43 @@ func main() {
 	cmd := strings.ToLower(os.Args[1])
 	switch cmd {
 	case "list":
-		scanner.NewScanner().PrintList()
+		if print.CheckLibPdfExist() == false {
+			log.Fatalf("Lib pdf does not exist: %s", print.DefaultSumatraPath)
+		}
+		printList, _ := print.NewScanner().PrintList()
+		config, _ := print.NewConfigPrinter()
+		cli := ui.NewCLI(config)
+		cli.ChoosePrinter(printList)
+		cli.ChooseFolder()
+		folderScan := print.NewFolderScan(config.GetFolder())
+		err := folderScan.ScanPDFFiles()
+		if err != nil {
+			log.Fatal(err)
+		}
+		print.NewPrinter(config.PrintName).Print("h:\\test.pdf")
+	case "test_print":
+		print.NewPrinter("Microsoft Print to PDF").Print("h:\\test.pdf")
+	case "configure":
+		if print.CheckLibPdfExist() == false {
+			log.Fatalf("Lib pdf does not exist: %s", print.DefaultSumatraPath)
+		}
+		printList, _ := print.NewScanner().PrintList()
+		config, _ := print.NewConfigPrinter()
+		cli := ui.NewCLI(config)
+		cli.ChoosePrinter(printList)
+		cli.ChooseFolder()
+		err = config.SaveFile()
+		if err != nil {
+			log.Fatal(err)
+		}
 	case "install":
-		err = installService(svcName, "Go HTTP Server")
+		err = installService(svcName, svcDescription)
 	case "remove":
 		err = removeService(svcName)
 	case "start":
 		err = startService(svcName)
+	case "run":
+		runApp()
 	case "stop":
 		err = controlService(svcName, svc.Stop, svc.Stopped)
 	default:
@@ -59,6 +92,7 @@ func main() {
 	}
 	if err != nil {
 		elog.Error(eventid, fmt.Sprintf("Failed to %s %s: %v", cmd, svcName, err))
+		fmt.Printf("Failed to %s %s: %v", cmd, svcName, err)
 	}
 	return
 }
@@ -104,7 +138,7 @@ loop:
 				time.Sleep(100 * time.Millisecond)
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-				elog.Info(eventid, "Shutdown HTTP Server")
+				elog.Info(eventid, "Shutdown Win files to print")
 				break loop
 			case svc.Pause:
 				changes <- svc.Status{State: svc.Paused, Accepts: cmdsAccepted}
@@ -251,24 +285,38 @@ func controlService(name string, c svc.Cmd, to svc.State) error {
 func runApp() {
 	if isFirstRun {
 		isFirstRun = false
-		elog.Info(eventid, fmt.Sprint("Start HTTP Server"))
+		elog.Info(eventid, fmt.Sprintf("Start %s", svcDescription))
 
-		gmux := mux.NewRouter().StrictSlash(true)
+		if print.CheckLibPdfExist() == false {
+			log.Fatalf("Lib pdf does not exist: %s", print.DefaultSumatraPath)
+		}
 
-		gmux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, "Hello World")
-		}).Methods("GET")
+		config, err := print.NewConfigPrinter()
+		err = config.LoadConfig()
+		if err != nil {
+			elog.Error(eventid, err.Error())
+			elog.Info(eventid, err.Error())
+			log.Fatal(err)
+		}
 
-		gmux.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-			http.FileServer(http.Dir("C:/wwwRoot/static/"))))
-
-		gmux.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprint(w, "Not Found")
-		})
+		// Canal pour recevoir les signaux d'interruption
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 		go func() {
-			http.ListenAndServe(":8080", gmux)
+
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				elog.Info(eventid, fmt.Sprintf("Itération toutes les 5 secondes %s %s %d", time.Now().String(), config.Folder, config.PrintName))
+				fmt.Println("Itération toutes les 5 secondes:", time.Now())
+				time.Sleep(5 * time.Second)
+			}
 		}()
+		// Attendre le signal d'arrêt
+		sig := <-sigChan
+		elog.Info(eventid, fmt.Sprintf("Signal reçu, arrêt:", sig))
+		fmt.Println("Signal reçu, arrêt:", sig)
 	}
 }

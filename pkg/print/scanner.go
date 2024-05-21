@@ -1,4 +1,4 @@
-package scanner
+package print
 
 import (
 	"bufio"
@@ -15,7 +15,7 @@ func NewScanner() *Scanner {
 	return &Scanner{}
 }
 
-func (s *Scanner) PrintList() {
+func (s *Scanner) PrintList() (*PrinterList, error) {
 	// Exécute la commande WMIC pour obtenir la liste des imprimantes
 	cmd := exec.Command("wmic", "printer", "get", "name")
 
@@ -25,7 +25,7 @@ func (s *Scanner) PrintList() {
 		log.Fatalf("Failed to execute command: %v", err)
 	}
 
-	// Utilise un scanner pour lire la sortie ligne par ligne
+	// Utilise un print pour lire la sortie ligne par ligne
 	scanner := bufio.NewScanner(strings.NewReader(string(out)))
 
 	// Ignore la première ligne qui contient le nom de la colonne
@@ -34,16 +34,24 @@ func (s *Scanner) PrintList() {
 		fmt.Println("Available Printers:")
 	}
 
+	printerList := &PrinterList{
+		List:      []string{},
+		IndexMap:  make(map[int]string),
+		nextIndex: 1,
+	}
+
 	// Parcours des lignes restantes
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line != "" {
-			fmt.Println(line)
+			printerList.Add(line)
 		}
 	}
 
-	// Vérifie les erreurs de scanner
+	// Vérifie les erreurs de print
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("Scanner error: %v", err)
 	}
+
+	return printerList, nil
 }
