@@ -303,9 +303,19 @@ func runApp() {
 			log.Fatal(err2)
 		}
 		elog.Info(eventid, config.Render())
+
+		folderScan := print.NewFolderScan(config.GetFolder())
+
 		go func() {
 			for {
-				elog.Info(eventid, fmt.Sprintf("slowtick:", time.Now()))
+				err = folderScan.ScanPDFFiles()
+				if err != nil {
+					msgErr := fmt.Sprintf("ScanPDFFiles() failed: %v", err)
+					elog.Error(eventid, msgErr)
+					log.Fatal(msgErr)
+				}
+
+				elog.Info(eventid, fmt.Sprintf("count pdf: %d", folderScan.CountFilesPdf()))
 				time.Sleep(5 * time.Second)
 			}
 		}()

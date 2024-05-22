@@ -45,6 +45,10 @@ func (fs *FolderScan) ScanPDFFiles() error {
 	return nil
 }
 
+func (fs *FolderScan) CountFilesPdf() int {
+	return len(fs.FilesPdf)
+}
+
 func isPdfFile(filename string) bool {
 	return filepath.Ext(filename) == ".pdf"
 }
