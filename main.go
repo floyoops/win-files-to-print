@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 	"win-files-to-print/pkg/print"
 	"win-files-to-print/pkg/ui"
@@ -126,6 +124,7 @@ func (m *winservice) Execute(args []string, r <-chan svc.ChangeRequest, changes 
 	slowtick := time.Tick(2 * time.Second)
 	tick := fasttick
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
 loop:
 	for {
 		select {
@@ -283,6 +282,7 @@ func controlService(name string, c svc.Cmd, to svc.State) error {
 }
 
 func runApp() {
+	elog.Info(eventid, "run app started")
 	if isFirstRun {
 		isFirstRun = false
 		elog.Info(eventid, fmt.Sprintf("Start %s", svcDescription))
@@ -292,31 +292,25 @@ func runApp() {
 		}
 
 		config, err := print.NewConfigPrinter()
-		err = config.LoadConfig()
 		if err != nil {
 			elog.Error(eventid, err.Error())
 			elog.Info(eventid, err.Error())
-			log.Fatal(err)
 		}
-
-		// Canal pour recevoir les signaux d'interruption
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
+		elog.Info(eventid, fmt.Sprintf("config file: %s", config.GetConfigFile()))
+		err2 := config.LoadConfig()
+		if err2 != nil {
+			elog.Error(eventid, err2.Error())
+			log.Fatal(err2)
+		}
+		elog.Info(eventid, config.Render())
 		go func() {
-
-			ticker := time.NewTicker(5 * time.Second)
-			defer ticker.Stop()
-
 			for {
-				elog.Info(eventid, fmt.Sprintf("Itération toutes les 5 secondes %s %s %d", time.Now().String(), config.Folder, config.PrintName))
-				fmt.Println("Itération toutes les 5 secondes:", time.Now())
+				elog.Info(eventid, fmt.Sprintf("slowtick:", time.Now()))
 				time.Sleep(5 * time.Second)
 			}
 		}()
-		// Attendre le signal d'arrêt
-		sig := <-sigChan
-		elog.Info(eventid, fmt.Sprintf("Signal reçu, arrêt:", sig))
-		fmt.Println("Signal reçu, arrêt:", sig)
+		select {}
+		elog.Info(eventid, "runApp finish")
+		fmt.Println("runApp finish")
 	}
 }

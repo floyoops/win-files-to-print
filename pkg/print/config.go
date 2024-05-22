@@ -2,9 +2,12 @@ package print
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 )
+
+const defaultConfigFile = "c:\\win-files-to-print-config.json"
 
 type ConfigPrinter struct {
 	configFile string
@@ -13,12 +16,7 @@ type ConfigPrinter struct {
 }
 
 func NewConfigPrinter() (*ConfigPrinter, error) {
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	configFile := workingDir + "/config.json"
-	return &ConfigPrinter{configFile: configFile, Folder: "", PrintName: ""}, nil
+	return &ConfigPrinter{configFile: defaultConfigFile, Folder: "", PrintName: ""}, nil
 }
 
 func (p *ConfigPrinter) SetFolder(folder string) {
@@ -35,6 +33,10 @@ func (p *ConfigPrinter) SetPrintName(printName string) {
 
 func (p *ConfigPrinter) GetPrintName() string {
 	return p.PrintName
+}
+
+func (p *ConfigPrinter) GetConfigFile() string {
+	return p.configFile
 }
 
 func (p *ConfigPrinter) SaveFile() error {
@@ -60,11 +62,19 @@ func (p *ConfigPrinter) DeleteFile() error {
 func (p *ConfigPrinter) LoadConfig() error {
 	configData, err := os.ReadFile(p.configFile)
 	if err != nil {
-		log.Fatalf("Failed to read config file: %v", err)
+		log.Fatalf("Failed to read config file: %s %v", p.configFile, err)
 	}
 	err = json.Unmarshal(configData, &p)
 	if err != nil {
 		log.Fatalf("Failed to parse config file: %v", err)
 	}
 	return nil
+}
+
+func (p *ConfigPrinter) Render() string {
+	return fmt.Sprintf("configFile %s\n"+
+		"Folder %s\n"+
+		"Print Name: %s\n",
+		p.configFile, p.Folder, p.PrintName,
+	)
 }
