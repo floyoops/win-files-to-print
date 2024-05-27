@@ -296,7 +296,6 @@ func runApp() {
 			elog.Error(eventid, err.Error())
 			elog.Info(eventid, err.Error())
 		}
-		elog.Info(eventid, fmt.Sprintf("config file: %s", config.GetConfigFile()))
 		err2 := config.LoadConfig()
 		if err2 != nil {
 			elog.Error(eventid, err2.Error())
@@ -305,6 +304,7 @@ func runApp() {
 		elog.Info(eventid, config.Render())
 
 		folderScan := print.NewFolderScan(config.GetFolder())
+		printer := print.NewPrinter(config.GetPrintName())
 
 		go func() {
 			for {
@@ -315,7 +315,20 @@ func runApp() {
 					log.Fatal(msgErr)
 				}
 
-				elog.Info(eventid, fmt.Sprintf("count pdf: %d", folderScan.CountFilesPdf()))
+				elog.Info(eventid, fmt.Sprintf("count pdf: %d", folderScan.CountFilesPdfScanned()))
+
+				for _, filePath := range folderScan.GetFilesPathScanned() {
+					elog.Info(eventid, fmt.Sprintf("before print %s on %s", filePath, printer.GetPrinterName()))
+					err = printer.Print(filePath)
+					elog.Info(eventid, fmt.Sprintf("after print %s on %s", filePath, printer.GetPrinterName()))
+					if err != nil {
+						msgErr := fmt.Sprintf("Print() failed: %v", err)
+						elog.Error(eventid, msgErr)
+						log.Fatal(msgErr)
+					}
+					elog.Info(eventid, fmt.Sprintf("%s printed", filePath))
+				}
+
 				time.Sleep(5 * time.Second)
 			}
 		}()

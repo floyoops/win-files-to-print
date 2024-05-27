@@ -1,6 +1,7 @@
 package print
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -45,7 +46,16 @@ func (fs *FolderScan) ScanPDFFiles() error {
 	return nil
 }
 
-func (fs *FolderScan) CountFilesPdf() int {
+func (fs *FolderScan) GetFilesPathScanned() []string {
+	var filesPath []string
+	for nameFile := range fs.FilesPdf {
+		filesPath = append(filesPath, fmt.Sprintf("%s\\%s", fs.Path, nameFile))
+	}
+
+	return filesPath
+}
+
+func (fs *FolderScan) CountFilesPdfScanned() int {
 	return len(fs.FilesPdf)
 }
 
